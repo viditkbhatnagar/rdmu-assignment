@@ -209,7 +209,7 @@ def ask_gpt_markov(current_alarm, markov_matrix):
 def page_home():
     st.title("Alarm Intelligence App")
     st.write(
-        "Welcome to the Alarm Intelligence App. Use the navigation menu below to explore different sections:\n\n"
+        "Welcome to the Alarm Intelligence App. Use the navigation menu on the sidebar to explore different sections:\n\n"
         "- **GPT Q&A:** Upload a PDF case study to get custom answers about the business problem, key actions, and data-driven solutions.\n"
         "- **Visualizations:** Upload alarm data (Excel file) and explore multiple interactive visualizations.\n"
         "- **Markov Chain:** Upload a transition matrix (Excel file) to compute a Markov model, predict the next alarm type, and receive a detailed explanation.\n"
@@ -228,23 +228,37 @@ def page_gpt_qna():
         "2. What key actions did Osum take to overcome the problem and why?\n"
         "3. How can a data-driven solution be achieved for this case?"
     )
-    openai_key = st.text_input("Enter your OpenAI API Key", type="password")
-    uploaded_pdf = st.file_uploader("Upload PDF Case Study", type=["pdf"])
-    if st.button("Ask GPT"):
+    
+    # Initialize session state variables if they don't exist
+    if "gpt_response" not in st.session_state:
+        st.session_state.gpt_response = None
+    if "case_study_text" not in st.session_state:
+        st.session_state.case_study_text = None
+
+    openai_key = st.text_input("Enter your OpenAI API Key", type="password", key="gpt_api_key")
+    uploaded_pdf = st.file_uploader("Upload PDF Case Study", type=["pdf"], key="pdf_upload")
+    
+    if st.button("Ask GPT", key="ask_gpt"):
         if not openai_key:
             st.error("Please enter your OpenAI API key.")
-            return
-        if not uploaded_pdf:
+        elif not uploaded_pdf:
             st.error("Please upload a PDF file with your case study.")
-            return
-        openai.api_key = openai_key
-        case_study_text = extract_text_from_pdf(uploaded_pdf)
-        if case_study_text:
-            st.markdown("### Case Study Text Preview")
-            st.write(case_study_text[:500] + "...")
-            answer = ask_gpt_for_analysis(case_study_text)
-            st.markdown("### GPT Response")
-            st.write(answer)
+        else:
+            openai.api_key = openai_key
+            case_study_text = extract_text_from_pdf(uploaded_pdf)
+            if case_study_text:
+                st.session_state.case_study_text = case_study_text
+                st.markdown("### Case Study Text Preview")
+                st.write(case_study_text[:500] + "...")
+                answer = ask_gpt_for_analysis(case_study_text)
+                st.session_state.gpt_response = answer
+                st.markdown("### GPT Response")
+                st.write(answer)
+    
+    # If response already exists in session state, display it.
+    elif st.session_state.gpt_response:
+        st.markdown("### GPT Response")
+        st.write(st.session_state.gpt_response)
 
 def page_visualizations():
     st.title("Visualizations")
@@ -253,15 +267,19 @@ def page_visualizations():
         "**Date Timestamp, TagName, Severity, Grouping of Alarms, Naming**\n\n"
         "Use the in-page filters below to explore the data interactively."
     )
-    uploaded_file = st.file_uploader("Upload Excel File for Visualization", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Excel File for Visualization", type=["xlsx"], key="viz_upload")
     if uploaded_file is not None:
         try:
             df = pd.read_excel(uploaded_file)
-            st.markdown("### Data Preview")
-            st.dataframe(df.head())
-            visualize_alarm_data(df)
+            st.session_state.viz_df = df
         except Exception as e:
             st.error(f"Error reading Excel file: {e}")
+    
+    if "viz_df" in st.session_state and st.session_state.viz_df is not None:
+        df = st.session_state.viz_df
+        st.markdown("### Data Preview")
+        st.dataframe(df.head())
+        visualize_alarm_data(df)
 
 def page_markov():
     st.title("Markov Chain Alarm Prediction")
@@ -271,38 +289,58 @@ def page_markov():
         "• The remaining columns represent counts of occurrences for each next alarm type.\n\n"
         "For example, a table with rows for 'Others', 'Level', 'Flow', 'Pressure', and 'Temperature'."
     )
-    uploaded_file = st.file_uploader("Upload Excel File for Markov Matrix", type=["xlsx"])
-    current_alarm = st.text_input("Enter Current Alarm Type (e.g., Others, Level, Flow, Pressure, Temperature)", value="Others")
+    uploaded_file = st.file_uploader("Upload Excel File for Markov Matrix", type=["xlsx"], key="markov_upload")
+    current_alarm = st.text_input("Enter Current Alarm Type (e.g., Others, Level, Flow, Pressure, Temperature)", value="Others", key="current_alarm")
     
-    openai_key = st.text_input("Enter your OpenAI API Key for Markov Explanation (optional)", type="password")
+    openai_key = st.text_input("Enter your OpenAI API Key for Markov Explanation (optional)", type="password", key="markov_api_key")
     
-    if st.button("Compute and Predict"):
-        if not uploaded_file:
+    if st.button("Compute and Predict", key="compute_markov"):
+        if not uploaded_file and "markov_df" not in st.session_state:
             st.error("Please upload an Excel file first.")
             return
         try:
-            df = pd.read_excel(uploaded_file)
+            # Read and store Markov raw data
+            if uploaded_file is not None:
+                df = pd.read_excel(uploaded_file)
+                st.session_state.markov_df = df
+            else:
+                df = st.session_state.markov_df
             st.markdown("### Raw Markov Data Preview")
             st.dataframe(df.head())
             markov_matrix = parse_markov_data(df)
             if markov_matrix is None:
                 return
+            st.session_state.markov_matrix = markov_matrix
             st.markdown("### Row-Stochastic Markov Matrix")
             st.json(markov_matrix)
+            
             local_prediction = predict_next_alarm(current_alarm, markov_matrix)
+            st.session_state.local_prediction = local_prediction
             st.subheader("Local Prediction")
             st.write(f"Predicted Next Alarm (local calculation): **{local_prediction}**")
             
             # If an OpenAI API key is provided, call GPT for justification.
             if openai_key:
                 openai.api_key = openai_key
-                st.subheader("GPT Prediction & Justification")
                 gpt_response = ask_gpt_markov(current_alarm, markov_matrix)
+                st.session_state.markov_gpt_response = gpt_response
+                st.subheader("GPT Prediction & Justification")
                 st.write(gpt_response)
             else:
                 st.info("To get a detailed GPT explanation, please enter your OpenAI API key above.")
         except Exception as e:
             st.error(f"Error processing the Markov data: {e}")
+    else:
+        # If prediction results already exist in session state, display them.
+        if "markov_matrix" in st.session_state:
+            st.markdown("### Row-Stochastic Markov Matrix")
+            st.json(st.session_state.markov_matrix)
+        if "local_prediction" in st.session_state:
+            st.subheader("Local Prediction")
+            st.write(f"Predicted Next Alarm (local calculation): **{st.session_state.local_prediction}**")
+        if "markov_gpt_response" in st.session_state:
+            st.subheader("GPT Prediction & Justification")
+            st.write(st.session_state.markov_gpt_response)
 
 def page_conclusion():
     st.title("Conclusion & Impact")
@@ -343,7 +381,6 @@ def page_conclusion():
 
 def main():
     st.sidebar.title("Navigation")
-    # Using a selectbox for a cleaner navigation menu on the sidebar
     choice = st.sidebar.selectbox("Go to", ["Home", "GPT Q&A", "Visualizations", "Markov Chain", "Conclusion & Impact"])
     
     pages = {
