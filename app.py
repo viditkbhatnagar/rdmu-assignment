@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 import json
 import io
+import re
 from PyPDF2 import PdfReader
 
 # -----------------------------
@@ -35,9 +36,9 @@ def extract_text_from_pdf(uploaded_pdf):
 def ask_gpt_for_analysis(case_study_text):
     """
     Sends the PDF case study text to OpenAI GPT to answer:
-    a) Convert the business problem to an analytics problem,
-    b) Key actions taken by Osum and why,
-    c) How a data-driven solution can be achieved.
+    1. How can the business problem be converted into an analytics problem?
+    2. What key actions did Osum take to overcome the problem and why?
+    3. How can a data-driven solution be achieved, based on the case study?
     """
     system_prompt = (
         "You are an expert data scientist with domain knowledge in industrial alarm management. "
@@ -212,7 +213,7 @@ def page_home():
         "Welcome to the Alarm Intelligence App. Use the navigation menu on the sidebar to explore different sections:\n\n"
         "- **GPT Q&A:** Upload a PDF case study to get custom answers about the business problem, key actions, and data-driven solutions.\n"
         "- **Visualizations:** Upload alarm data (Excel file) and explore multiple interactive visualizations.\n"
-        "- **Markov Chain:** Upload a transition matrix (Excel file) to compute a Markov model, predict the next alarm type, and receive a detailed explanation.\n"
+        "- **Markov Chain:** Upload a transition matrix (Excel file) to compute a Markov model, predict the next alarm type, and receive a detailed explanation along with additional visuals.\n"
         "- **Conclusion & Impact:** Read about the potential impact and future directions of advanced alarm management."
     )
     try:
@@ -254,11 +255,125 @@ def page_gpt_qna():
                 st.session_state.gpt_response = answer
                 st.markdown("### GPT Response")
                 st.write(answer)
+                # Static findings container below the GPT response
+                st.markdown("### Our Findings")
+                findings_container = """
+                <div style="height:600px; overflow-y:auto; border:1px solid #ddd; padding:10px;">
+                <strong>a) Convert the Business Problem to an Analytics Problem.</strong><br>
+                <em>Ans):</em><br>
+                The problem: Osum Oil Sands Corp's SAGD plant faced an issue of alarm flooding and chattering on December 11, 2020 due to repetitive alarms triggered by interconnected systems. 772 alarms (95% repetitive), overwhelmed the operators, leading to delayed responses and near outages and risks of costly downtime.<br><br>
+                How is this a Business problem: The failure of alarm management system can directly impact Osum's operational efficiency, safety, and profitability. How?:<br>
+                - Operational inefficiency: Operators waste time on repetitive alarms instead of critical tasks.<br>
+                - Safety risks: Missed critical alarms could lead to equipment failure or accidents and possible downtime of the plant.<br>
+                - Financial loss: Unplanned downtime costs millions in lost production.<br>
+                - Reputation: Frequent outages could harm Osum’s standing in the oil industry.<br><br>
+                <strong>Conversion to an Analytics Problem:</strong><br>
+                - Business problem: Reduce chattering alarms and prioritize critical alerts.<br>
+                  Analytics problem: Classification: Predict whether an alarm is a "chattering" event (binary classification).<br>
+                - Business problem: Predict which alarm will occur next to enable proactive intervention.<br>
+                  Analytics problem: Sequence Prediction: Model alarm sequences to forecast the next alarm type.<br>
+                - Business problem: Minimize alarm floods and operator workload.<br>
+                  Analytics problem: Clustering & Prioritization: Group alarms by severity and root cause.<br>
+                - Business problem: Reduce false alarms (nuisance alarms).<br>
+                  Analytics problem: Anomaly Detection: Filter out redundant/stale alarms.<br><br>
+                Thus, by translating Osum’s alarm management crisis into classification, sequence prediction, and anomaly detection tasks, a high-stakes business problem can be converted into a structured analytics workflow. This approach enables proactive alarm handling, reduces downtime risks, and aligns with Osum’s operational goals.<br><br>
+                
+                <strong>b) What were the key actions Osum took to overcome and why?</strong><br>
+                <em>Ans):</em><br>
+                Key actions taken by OSUM to overcome these challenges:<br>
+                1. It partnered with Drishya AI Labs, an AI startup specializing in energy sector solutions, to develop a machine learning-based alarm management system. OSUM management was aware that this problem can be solved efficiently and effectively by implementing AI. However, they lacked in-house expertise in AI which was required to address the complex alarm floods and chattering issue. Bringing in Drishya AI Labs with domain knowledge in energy and AI capabilities offered them a tailored solution.<br>
+                2. Prioritized critical systems and shared the information with Drishya AI Labs for effective solution. OSUM suggested them to focus on evaporator system as it was one of the critical systems in the plant. This approach could subsequently be extended to other systems in the plant. Addressing this high-risk area first allowed for quick wins and proof-of-concept validation.<br>
+                3. They leveraged industry standards. They adopted ANSI/ISA 18.2 standards to define chattering (≥3 alarms/minute) and alarm floods (>10 alarms/10 minutes). These standardized definitions ensured alignment with global best practices and simplified model training. It provided clear thresholds for classifying nuisance alarms, reducing subjectivity.<br>
+                4. They provided historical data. They shared 3 years of historical alarm data which was essential for training ML models to identify patterns (chattering trends, alarm sequences). Historical context also enabled predictive analytics (e.g., forecasting next alarms).<br>
+                5. They clearly defined their analytical objectives to structure the problem into two analytics tasks:<br>
+                   - Classification: Predict chattering alarms (CHB = 1).<br>
+                   - Sequence Prediction: Forecast the next alarm type based on historical sequences.<br>
+                This classification reduced operator distraction by filtering non-critical alarms. Sequence prediction enabled proactive interventions to prevent downtime.<br><br>
+                
+                <strong>c) How can a data-driven solution to the business problem be achieved?</strong><br>
+                <em>Ans):</em><br>
+                Achieving a Data-Driven Solution to Osum’s Business Problem involves systematically leveraging historical data, machine learning (ML), and analytics to reduce nuisance alarms, prioritize critical alerts, and prevent downtime. Here’s a structured approach:<br>
+                1. Define the Business Objective<br>
+                   - Goal: Reduce alarm floods/chattering, improve operator efficiency, and minimize downtime risks.<br>
+                   - Success Metrics: 30–50% reduction in chattering alarms (≥3 alarms/minute), alarm floods reduced to <1% of total operational time, zero unplanned downtime events due to missed alarms.<br>
+                2. Data Collection & Preparation<br>
+                   - Gather Historical Data: Alarm logs (3 years) with variables like TagName, Severity, Alarm Tag Type, CHB, ATD, and time-based features.<br>
+                   - Preprocess & Engineer Features: Clean data, remove duplicates, handle missing values, and label chattering alarms using ANSI/ISA 18.2 thresholds.<br>
+                3. Model Development<br>
+                   - Task 1: Classify Chattering Alarms using supervised models (e.g., Random Forest, XGBoost).<br>
+                   - Task 2: Predict Next Alarm Type using sequence prediction models (e.g., LSTM networks, Markov Chains).<br>
+                   - Task 3: Prioritize Critical Alarms via clustering and prioritization techniques (e.g., K-means clustering).<br>
+                4. Validation & Testing<br>
+                   - Use cross-validation, performance metrics (precision, recall, F1-score, accuracy), and A/B testing to ensure robustness.<br>
+                5. Deployment & Integration<br>
+                   - Integrate models with the DCS to provide real-time alerts, priority dashboards, and predictive warnings.<br>
+                6. Monitoring & Iteration<br>
+                   - Implement feedback loops, monitor for drift, and continuously retrain models with updated data.<br><br>
+                By combining domain expertise with advanced analytics, this data-driven solution transforms raw alarm data into actionable insights, aligning with Osum’s operational and financial goals.
+                </div>
+                """
+                st.markdown(findings_container, unsafe_allow_html=True)
     
-    # If response already exists in session state, display it.
     elif st.session_state.gpt_response:
         st.markdown("### GPT Response")
         st.write(st.session_state.gpt_response)
+        st.markdown("### Our Findings")
+        findings_container = """
+        <div style="height:600px; overflow-y:auto; border:1px solid #ddd; padding:10px;">
+        <strong>a) Convert the Business Problem to an Analytics Problem.</strong><br>
+        <em>Ans):</em><br>
+        The problem: Osum Oil Sands Corp's SAGD plant faced an issue of alarm flooding and chattering on December 11, 2020 due to repetitive alarms triggered by interconnected systems. 772 alarms (95% repetitive), overwhelmed the operators, leading to delayed responses and near outages and risks of costly downtime.<br><br>
+        How is this a Business problem: The failure of alarm management system can directly impact Osum's operational efficiency, safety, and profitability. How?:<br>
+        - Operational inefficiency: Operators waste time on repetitive alarms instead of critical tasks.<br>
+        - Safety risks: Missed critical alarms could lead to equipment failure or accidents and possible downtime of the plant.<br>
+        - Financial loss: Unplanned downtime costs millions in lost production.<br>
+        - Reputation: Frequent outages could harm Osum’s standing in the oil industry.<br><br>
+        <strong>Conversion to an Analytics Problem:</strong><br>
+        - Business problem: Reduce chattering alarms and prioritize critical alerts.<br>
+          Analytics problem: Classification: Predict whether an alarm is a "chattering" event (binary classification).<br>
+        - Business problem: Predict which alarm will occur next to enable proactive intervention.<br>
+          Analytics problem: Sequence Prediction: Model alarm sequences to forecast the next alarm type.<br>
+        - Business problem: Minimize alarm floods and operator workload.<br>
+          Analytics problem: Clustering & Prioritization: Group alarms by severity and root cause.<br>
+        - Business problem: Reduce false alarms (nuisance alarms).<br>
+          Analytics problem: Anomaly Detection: Filter out redundant/stale alarms.<br><br>
+        Thus, by translating Osum’s alarm management crisis into classification, sequence prediction, and anomaly detection tasks, a high-stakes business problem can be converted into a structured analytics workflow. This approach enables proactive alarm handling, reduces downtime risks, and aligns with Osum’s operational goals.<br><br>
+        
+        <strong>b) What were the key actions Osum took to overcome and why?</strong><br>
+        <em>Ans):</em><br>
+        Key actions taken by OSUM to overcome these challenges:<br>
+        1. It partnered with Drishya AI Labs, an AI startup specializing in energy sector solutions, to develop a machine learning-based alarm management system. OSUM management was aware that this problem can be solved efficiently and effectively by implementing AI. However, they lacked in-house expertise in AI which was required to address the complex alarm floods and chattering issue. Bringing in Drishya AI Labs with domain knowledge in energy and AI capabilities offered them a tailored solution.<br>
+        2. Prioritized critical systems and shared the information with Drishya AI Labs for effective solution. OSUM suggested them to focus on evaporator system as it was one of the critical systems in the plant. This approach could subsequently be extended to other systems in the plant. Addressing this high-risk area first allowed for quick wins and proof-of-concept validation.<br>
+        3. They leveraged industry standards. They adopted ANSI/ISA 18.2 standards to define chattering (≥3 alarms/minute) and alarm floods (>10 alarms/10 minutes). These standardized definitions ensured alignment with global best practices and simplified model training. It provided clear thresholds for classifying nuisance alarms, reducing subjectivity.<br>
+        4. They provided historical data. They shared 3 years of historical alarm data which was essential for training ML models to identify patterns (chattering trends, alarm sequences). Historical context also enabled predictive analytics (e.g., forecasting next alarms).<br>
+        5. They clearly defined their analytical objectives to structure the problem into two analytics tasks:<br>
+           - Classification: Predict chattering alarms (CHB = 1).<br>
+           - Sequence Prediction: Forecast the next alarm type based on historical sequences.<br>
+        This classification reduced operator distraction by filtering non-critical alarms. Sequence prediction enabled proactive interventions to prevent downtime.<br><br>
+        
+        <strong>c) How can a data-driven solution to the business problem be achieved?</strong><br>
+        <em>Ans):</em><br>
+        Achieving a Data-Driven Solution to Osum’s Business Problem involves systematically leveraging historical data, machine learning (ML), and analytics to reduce nuisance alarms, prioritize critical alerts, and prevent downtime. Here’s a structured approach:<br>
+        1. Define the Business Objective<br>
+           - Goal: Reduce alarm floods/chattering, improve operator efficiency, and minimize downtime risks.<br>
+           - Success Metrics: 30–50% reduction in chattering alarms (≥3 alarms/minute), alarm floods reduced to <1% of total operational time, zero unplanned downtime events due to missed alarms.<br>
+        2. Data Collection & Preparation<br>
+           - Gather Historical Data: Alarm logs (3 years) with variables like TagName, Severity, Alarm Tag Type, CHB, ATD, and time-based features.<br>
+           - Preprocess & Engineer Features: Clean data, remove duplicates, handle missing values, and label chattering alarms using ANSI/ISA 18.2 thresholds.<br>
+        3. Model Development<br>
+           - Task 1: Classify Chattering Alarms using supervised models (e.g., Random Forest, XGBoost).<br>
+           - Task 2: Predict Next Alarm Type using sequence prediction models (e.g., LSTM networks, Markov Chains).<br>
+           - Task 3: Prioritize Critical Alarms via clustering and prioritization techniques (e.g., K-means clustering).<br>
+        4. Validation & Testing<br>
+           - Use cross-validation, performance metrics (precision, recall, F1-score, accuracy), and A/B testing to ensure robustness.<br>
+        5. Deployment & Integration<br>
+           - Integrate models with the DCS to provide real-time alerts, priority dashboards, and predictive warnings.<br>
+        6. Monitoring & Iteration<br>
+           - Implement feedback loops, monitor for drift, and continuously retrain models with updated data.<br><br>
+        By combining domain expertise with advanced analytics, this data-driven solution transforms raw alarm data into actionable insights, aligning with Osum’s operational and financial goals.
+        </div>
+        """
+        st.markdown(findings_container, unsafe_allow_html=True)
 
 def page_visualizations():
     st.title("Visualizations")
@@ -290,7 +405,14 @@ def page_markov():
         "For example, a table with rows for 'Others', 'Level', 'Flow', 'Pressure', and 'Temperature'."
     )
     uploaded_file = st.file_uploader("Upload Excel File for Markov Matrix", type=["xlsx"], key="markov_upload")
-    current_alarm = st.text_input("Enter Current Alarm Type (e.g., Others, Level, Flow, Pressure, Temperature)", value="Others", key="current_alarm")
+    
+    # If the Excel file has been uploaded previously, derive alarm options from its first column.
+    if "markov_df" in st.session_state and st.session_state.markov_df is not None:
+        alarm_options = list(st.session_state.markov_df.iloc[:, 0].unique())
+    else:
+        alarm_options = ["Others", "Level", "Flow", "Pressure", "Temperature"]
+    
+    current_alarm = st.selectbox("Enter Current Alarm Type", options=alarm_options, key="current_alarm")
     
     openai_key = st.text_input("Enter your OpenAI API Key for Markov Explanation (optional)", type="password", key="markov_api_key")
     
@@ -319,7 +441,6 @@ def page_markov():
             st.subheader("Local Prediction")
             st.write(f"Predicted Next Alarm (local calculation): **{local_prediction}**")
             
-            # If an OpenAI API key is provided, call GPT for justification.
             if openai_key:
                 openai.api_key = openai_key
                 gpt_response = ask_gpt_markov(current_alarm, markov_matrix)
@@ -328,6 +449,53 @@ def page_markov():
                 st.write(gpt_response)
             else:
                 st.info("To get a detailed GPT explanation, please enter your OpenAI API key above.")
+            
+            # -----------------------------
+            # Additional Visualizations Section
+            st.markdown("### Additional Visuals for Local Prediction")
+            if current_alarm in markov_matrix:
+                row_data = markov_matrix[current_alarm]
+                alarm_types = list(row_data.keys())
+                probabilities = list(row_data.values())
+                
+                # Bar Chart
+                fig_bar = go.Figure(data=go.Bar(
+                    x=alarm_types, y=probabilities,
+                    marker_color='mediumseagreen'
+                ))
+                # Attempt to extract GPT predicted alarm from response using a simple heuristic.
+                gpt_pred = "N/A"
+                if st.session_state.get("markov_gpt_response"):
+                    match = re.search(r"predicted next alarm\s*[:\-]?\s*(\w+)", st.session_state.markov_gpt_response, re.IGNORECASE)
+                    if match:
+                        gpt_pred = match.group(1)
+                fig_bar.update_layout(
+                    title=f"Local Prediction: Probability Distribution<br>(Local Predicted: {local_prediction}; GPT Predicted: {gpt_pred})",
+                    xaxis_title="Next Alarm Type", yaxis_title="Probability", bargap=0.2
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+                
+                # Pie Chart
+                fig_pie = go.Figure(data=go.Pie(
+                    labels=alarm_types, values=probabilities,
+                    marker_colors=['lightskyblue', 'lightcoral', 'lightgreen', 'plum', 'khaki']
+                ))
+                fig_pie.update_layout(title="Local Prediction: Pie Chart of Probabilities")
+                st.plotly_chart(fig_pie, use_container_width=True)
+                
+                # Radar Chart (Spider Chart)
+                fig_radar = go.Figure()
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=probabilities, theta=alarm_types, fill='toself',
+                    name="Probability", marker_color='dodgerblue'
+                ))
+                fig_radar.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, range=[0, max(probabilities)*1.2])),
+                    title="Local Prediction: Radar Chart"
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+            else:
+                st.warning("Current alarm type not found in the Markov matrix.")
         except Exception as e:
             st.error(f"Error processing the Markov data: {e}")
     else:
@@ -341,6 +509,40 @@ def page_markov():
         if "markov_gpt_response" in st.session_state:
             st.subheader("GPT Prediction & Justification")
             st.write(st.session_state.markov_gpt_response)
+        # Additionally, display visuals if Markov matrix is available.
+        if "markov_matrix" in st.session_state and st.session_state.markov_matrix.get(current_alarm):
+            row_data = st.session_state.markov_matrix[current_alarm]
+            alarm_types = list(row_data.keys())
+            probabilities = list(row_data.values())
+            
+            st.markdown("### Additional Visuals for Local Prediction")
+            fig_bar = go.Figure(data=go.Bar(
+                x=alarm_types, y=probabilities,
+                marker_color='mediumseagreen'
+            ))
+            fig_bar.update_layout(
+                title="Local Prediction: Probability Distribution",
+                xaxis_title="Next Alarm Type", yaxis_title="Probability", bargap=0.2
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+            fig_pie = go.Figure(data=go.Pie(
+                labels=alarm_types, values=probabilities,
+                marker_colors=['lightskyblue', 'lightcoral', 'lightgreen', 'plum', 'khaki']
+            ))
+            fig_pie.update_layout(title="Local Prediction: Pie Chart of Probabilities")
+            st.plotly_chart(fig_pie, use_container_width=True)
+            
+            fig_radar = go.Figure()
+            fig_radar.add_trace(go.Scatterpolar(
+                r=probabilities, theta=alarm_types, fill='toself',
+                name="Probability", marker_color='dodgerblue'
+            ))
+            fig_radar.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, max(probabilities)*1.2])),
+                title="Local Prediction: Radar Chart"
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
 
 def page_conclusion():
     st.title("Conclusion & Impact")
